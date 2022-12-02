@@ -161,7 +161,6 @@ TEST_CASE("copy constructor allocates new objects, copied from the original")
                 auto i_orig = orig.begin();
                 auto e_orig = orig.end();
                 auto i_copy = copy.begin();
-                auto e_copy = copy.end();
                 while (i_orig != e_orig)
                 {
                     REQUIRE(*i_orig == *i_copy);
@@ -338,10 +337,10 @@ TEST_CASE("pop_back removes the last element")
 
 TEST_CASE("throwing constructor on push_back leaves the vector as it was and throws")
 {
-    stable_vector<throw_on_copy> v;
-
     for (int i = 0; i < 32; ++i)
     {
+        stable_vector<throw_on_copy> v;
+
         for (int j = 0; j < i; ++j)
         {
             v.push_back(j);
