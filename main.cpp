@@ -371,3 +371,82 @@ TEST_CASE("an element that throws during range construction deallocates and thro
     throw_on_copy source[]{0,1,2,3,4,-1,0};
     REQUIRE_THROWS(stable_vector<throw_on_copy>(source));
 }
+
+TEST_CASE("single iterator erase move assigns elements one closer to begin")
+{
+    GIVEN("a vector with data")
+    {
+        stable_vector<std::unique_ptr<int>> v;
+        for (int i = 0; i != 10; ++i) {
+            v.push_back(std::make_unique<int>(i));
+        }
+        WHEN("erasing an element in the middle")
+        {
+            auto i = std::find_if(v.begin(), v.end(),
+                                  [](const auto &i) { return *i == 3; });
+            i = v.erase(i);
+            THEN("the returned iterator refers to the element that was after the erased")
+            {
+                REQUIRE(**i == 4);
+            }
+            AND_THEN("the size is reduced by one")
+            {
+                REQUIRE(v.size() == 9);
+            }
+            AND_THEN("elements before the erase position are untouched")
+            {
+                REQUIRE(*v[0] == 0);
+                REQUIRE(*v[1] == 1);
+                REQUIRE(*v[2] == 2);
+            }
+            AND_THEN("elements after the erased position are moved one step closer to begin")
+            {
+                REQUIRE(*v[3] == 4);
+                REQUIRE(*v[4] == 5);
+                REQUIRE(*v[5] == 6);
+                REQUIRE(*v[6] == 7);
+                REQUIRE(*v[7] == 8);
+                REQUIRE(*v[8] == 9);
+            }
+        }
+        AND_WHEN("erasing the end iterator")
+        {
+            auto i = v.erase(v.end());
+            THEN("the size remains as before")
+            {
+                REQUIRE(v.size() == 10);
+            }
+            AND_THEN("the returned iterator is the end iterator")
+            {
+                REQUIRE(i == v.end());
+            }
+            AND_THEN("all data is intact")
+            {
+                for (int n = 0; n != 10; ++n)
+                {
+                    REQUIRE(*v[n] == n);
+                }
+            }
+        }
+        AND_WHEN("erasing one before the end iterator")
+        {
+            auto pos = std::prev(v.end());
+            auto i = v.erase(pos);
+            THEN("the size is shrunk by one")
+            {
+                REQUIRE(v.size() == 9);
+            }
+            AND_THEN("the returned iterator is the new end()")
+            {
+                REQUIRE(i == v.end());
+            }
+            AND_THEN("the remaining elements are intact as before")
+            {
+                for (int i = 0; i != 9; ++i)
+                {
+                    REQUIRE(*v[i] == i);
+                }
+            }
+        }
+    }
+}

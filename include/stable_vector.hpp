@@ -213,6 +213,22 @@ public:
     auto rbegin() const noexcept { return std::reverse_iterator(end());}
     auto rend() noexcept { return std::reverse_iterator(begin());}
     auto rend() const noexcept { return std::reverse_iterator(begin());}
+    iterator erase(iterator pos) noexcept
+        requires(std::is_nothrow_move_assignable_v<T>)
+    {
+        auto e = end();
+        if (pos != e) {
+            auto i = pos;
+            auto prev = i++;
+            while (i != e) {
+                *prev = std::move(*i);
+                ++i;
+                ++prev;
+            }
+            pop_back();
+        }
+        return pos;
+    }
 private:
     T& element_at(std::size_t idx) const noexcept
     {
