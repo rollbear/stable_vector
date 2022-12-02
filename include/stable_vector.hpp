@@ -4,6 +4,7 @@
 #include <vector>
 #include <utility>
 #include <bit>
+#include <ranges>
 
 template <typename T>
 class stable_vector
@@ -27,6 +28,21 @@ public:
         try {
             for (const auto &element: v) {
                 push_back(element);
+            }
+        }
+        catch (...)
+        {
+            delete_all();
+            throw;
+        }
+    }
+    template <std::ranges::range R>
+    stable_vector(const R& r)
+        requires(std::is_constructible_v<T, std::ranges::range_reference_t<R>>)
+    {
+        try {
+            for (auto &v : r) {
+                emplace_back(v);
             }
         }
         catch (...)

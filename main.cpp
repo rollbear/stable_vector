@@ -352,3 +352,22 @@ TEST_CASE("throwing constructor on push_back leaves the vector as it was and thr
         }
     }
 }
+
+template <typename T>
+struct convertible
+{
+    T t;
+    operator const T&() const { return t; }
+};
+
+TEST_CASE("a vector can be constructed from a compatible range")
+{
+    convertible<int> src[]{{1},{2},{3},{4},{5},{6}};
+    stable_vector<int> v(src);
+}
+
+TEST_CASE("an element that throws during range construction deallocates and throws from constructor")
+{
+    throw_on_copy source[]{0,1,2,3,4,-1,0};
+    REQUIRE_THROWS(stable_vector<throw_on_copy>(source));
+}
