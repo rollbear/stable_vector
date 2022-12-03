@@ -229,6 +229,29 @@ public:
         }
         return pos;
     }
+    iterator erase(iterator ib, iterator ie) noexcept
+        requires(std::is_nothrow_move_assignable_v<T>)
+    {
+        const auto e = end();
+        auto rv = ie;
+        while (ie != e)
+        {
+            *ib = std::move(*ie);
+            ++ie; ++ib;
+        }
+        bool at_end = false;
+        while (!empty() && end_ != ib.current_element)
+        {
+            at_end = at_end | (rv == end());
+            pop_back();
+        }
+
+        if (at_end)
+        {
+            rv = end();
+        }
+        return rv;
+    }
 private:
     T& element_at(std::size_t idx) const noexcept
     {

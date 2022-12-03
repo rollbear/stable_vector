@@ -450,3 +450,112 @@ TEST_CASE("single iterator erase move assigns elements one closer to begin")
         }
     }
 }
+
+TEST_CASE("erase range")
+{
+    GIVEN("a vector with data")
+    {
+        stable_vector<std::unique_ptr<int>> v;
+        for (int i = 0; i != 10; ++i)
+        {
+            v.push_back(std::make_unique<int>(i));
+        }
+        WHEN("erasing end(),end()")
+        {
+            auto i = v.erase(v.end(), v.end());
+            THEN("the vector has the same size")
+            {
+                REQUIRE(v.size() == 10);
+            }
+            AND_THEN("the returned iterator is the end iterator")
+            {
+                REQUIRE(i == v.end());
+            }
+            AND_THEN("the elemenents are untouched")
+            {
+                for (int i = 0; i != 10; ++i)
+                {
+                    REQUIRE(*v[i] == i);
+                }
+            }
+        }
+        AND_WHEN("erasing begin(),begin()")
+        {
+            auto i = v.erase(v.begin(), v.begin());
+            THEN("the vector has the same size")
+            {
+                REQUIRE(v.size() == 10);
+            }
+            AND_THEN("the returned iterator is begin()")
+            {
+                REQUIRE(i == v.begin());
+            }
+            AND_THEN("the elements are untouched")
+            {
+                for (int i = 0; i != 10; ++i)
+                {
+                    REQUIRE(*v[i] == i);
+                }
+            }
+        }
+        AND_WHEN("erasing an empty range in the middle")
+        {
+            auto pos = std::next(v.begin(), 5);
+            auto ri = v.erase(pos, pos);
+            THEN("the vector has the same size")
+            {
+                REQUIRE(v.size() == 10);
+            }
+            AND_THEN("the returned iterator is the argument iterator")
+            {
+                REQUIRE(ri == pos);
+            }
+            AND_THEN("the elements are untouched")
+            {
+                for (int i = 0; i != 10; ++i)
+                {
+                    REQUIRE(*v[i] == i);
+                }
+            }
+        }
+        AND_WHEN("erasing begin(),end()")
+        {
+            auto i = v.erase(v.begin(), v.end());
+            THEN("the vector becomes empty")
+            {
+                REQUIRE(v.empty());
+                REQUIRE(v.size() == 0);
+                REQUIRE(v.begin() == v.end());
+            }
+            AND_THEN("the returned iterator is end()")
+            {
+                REQUIRE(i == v.end());
+            }
+        }
+        AND_WHEN("erasing a range of size 5 in the middle")
+        {
+            auto i = std::next(v.begin(), 2); // 2
+            auto e = std::next(i,5); // 7
+            auto ri = v.erase(i,e);
+            THEN("the size is reduced by 5")
+            {
+                REQUIRE(v.size() == 5);
+            }
+            AND_THEN("the elements before the erased range are untouched")
+            {
+                REQUIRE(*v[0] == 0);
+                REQUIRE(*v[1] == 1);
+            }
+            AND_THEN("the elements after the erased range are moved towards begin")
+            {
+                REQUIRE(*v[2] == 7);
+                REQUIRE(*v[3] == 8);
+                REQUIRE(*v[4] == 9);
+            }
+            AND_THEN("the returned iterator is the given end of range iterator")
+            {
+                REQUIRE(ri == e);
+            }
+        }
+    }
+}
