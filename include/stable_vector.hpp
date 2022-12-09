@@ -121,6 +121,7 @@ public:
             }
             else
             {
+                blocks_.back().last_ = true;
                 end_ = blocks_.back().end_;
             }
         }
@@ -166,7 +167,7 @@ public:
         iterator_t& operator++() noexcept
         {
             ++current_element;
-            if (current_element == current_block->end_)
+            if (current_element == current_block->end_ && !current_block->last_)
             {
                 ++current_block;
                 current_element = current_block->begin_;
@@ -285,6 +286,9 @@ private:
         {
             const std::size_t size = 1 << blocks_.size();
             end_ = blocks_.emplace_back(size).begin_;
+            if (blocks_.size() > 1) {
+                blocks_[blocks_.size() - 2].last_ = false;
+            }
         }
         try {
             new (&end_->obj) T(std::forward<Ts>(ts)...);
@@ -294,6 +298,9 @@ private:
             if (blocks_.back().begin_ == end_)
             {
                 blocks_.pop_back();
+                if (!blocks_.empty()) {
+                    blocks_.back().last_ = true;
+                }
                 end_ = old_end;
             }
             throw;
@@ -311,6 +318,7 @@ private:
     struct block {
         element* begin_;
         element* end_;
+        bool last_ = true;
 
         block(std::size_t n)
         : begin_(new element[n])
@@ -319,6 +327,7 @@ private:
         block(block&& r)
         : begin_(std::exchange(r.begin_, nullptr))
         , end_(std::exchange(r.end_, nullptr))
+        , last_(r.last_)
         {
 
         }

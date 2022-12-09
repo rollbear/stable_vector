@@ -22,6 +22,28 @@ static_assert(!std::is_invocable_v<decltype([](auto&& x) -> decltype(std::declva
 static_assert(std::is_invocable_v<decltype([]<typename T>(T&& x) -> decltype(std::declval<stable_vector<std::unique_ptr<int>>&>().push_back(std::forward<T>(x))){}), std::unique_ptr<int>&&>,
               "An rvalue of a move-only type can be push_back:ed");
 
+TEST_CASE("grow")
+{
+    for (size_t size = 0; size != 1000; ++size)
+    {
+        stable_vector<size_t> v;
+        for (size_t n = 0; n != size; ++n)
+        {
+            v.push_back(n);
+        }
+        size_t n = 0;
+        for (auto& e : v)
+        {
+            REQUIRE(n == e);
+            ++n;
+        }
+        for (auto i = v.rbegin(); i != v.rend(); ++i)
+        {
+            --n;
+            REQUIRE(*i == n);
+        }
+    }
+}
 
 TEST_CASE("a default constructed vector is empty")
 {
