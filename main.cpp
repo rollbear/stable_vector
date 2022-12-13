@@ -304,20 +304,24 @@ TEST_CASE("move assignment moves tha actial block of objects and leaves the sour
 struct throw_on_copy
 {
     int throw_;
+    std::shared_ptr<int> p = std::make_shared<int>(3);
     throw_on_copy(int b) : throw_(b) {}
-    throw_on_copy(const throw_on_copy& orig) : throw_(orig.throw_) { if (throw_ < 0) { throw "foo"; }}
-    throw_on_copy& operator=(const throw_on_copy& orig) { if (orig.throw_ < 0) throw "foo"; return *this; }
+    throw_on_copy(const throw_on_copy& orig) : throw_(orig.throw_), p(orig.p) { if (throw_ < 0) { throw "foo"; }}
+    throw_on_copy& operator=(const throw_on_copy& orig) { if (orig.throw_ < 0) throw "foo"; p = orig.p; return *this; }
 };
 
 TEST_CASE("element throwing during copy construction deallocates and throws from constructor")
 {
-    stable_vector<throw_on_copy> src;
-    src.emplace_back(0);
-    src.emplace_back(0);
-    src.emplace_back(-1);
-    src.emplace_back(0);
-
-    REQUIRE_THROWS(stable_vector(src));
+    for (int i = 0; i < 16; ++i)
+    {
+        stable_vector<throw_on_copy> src;
+        for (int j = 0; j < i; ++j)
+        {
+            src.emplace_back(0);
+        }
+        src.emplace_back(-1);
+        REQUIRE_THROWS(stable_vector(src));
+    }
 }
 
 TEST_CASE("element throwing during copy assign leaves dest in previous state and throws")

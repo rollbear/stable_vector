@@ -75,10 +75,17 @@ public:
             catch (...)
             {
                 size_ = old_size;
-                blocks_.back().end_ = end_;
+                if (!blocks_.empty())
+                {
+                    blocks_.back().end_ = end_;
+                }
                 end_ = old_end;
                 blocks_ = std::move(old_blocks);
                 throw ;
+            }
+            if (old_size != 0U)
+            {
+                old_blocks.back().end_ = old_end;
             }
         }
         return *this;
@@ -297,6 +304,7 @@ private:
         {
             if (blocks_.back().begin_ == end_)
             {
+                blocks_.back().end_ = end_;
                 blocks_.pop_back();
                 if (!blocks_.empty()) {
                     blocks_.back().last_ = true;
