@@ -26,11 +26,20 @@ if (MASTER_PROJECT AND CMAKE_BUILD_TYPE MATCHES Debug)
     set(CMAKE_CXX_STANDARD_REQUIRED YES)
     set(CMAKE_CXX_EXTENSIONS OFF)
 
-    find_package(Catch2 3)
-    add_executable(test_stable_vector main.cpp)
+    find_package(Catch2 3 QUIET)
+    if (TARGET Catch2::Catch2WithMain)
+        add_executable(test_stable_vector main.cpp)
 
-    target_link_libraries(test_stable_vector PRIVATE stable_vector::stable_vector Catch2::Catch2WithMain)
+        target_link_libraries(test_stable_vector PRIVATE stable_vector::stable_vector Catch2::Catch2WithMain)
+    endif()
 endif()
+
+if (BENCHMARK)
+    find_package(benchmark)
+    add_executable(benchmark_stable_vector benchmark.cpp)
+    target_link_libraries(benchmark_stable_vector PRIVATE stable_vector::stable_vector benchmark::benchmark_main)
+endif()
+
 
 if (FUZZER)
     add_executable(fuzz_stable_vector fuzz.cpp)
