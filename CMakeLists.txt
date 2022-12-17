@@ -4,6 +4,7 @@ project(stable_vector)
 set(CMAKE_CXX_STANDARD 20)
 
 option(FUZZER OFF "Build a fuzz-tester")
+option(BENCHMARK OFF "Build a benchmark")
 
 set(MASTER_PROJECT OFF)
 if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
