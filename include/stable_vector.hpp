@@ -22,7 +22,7 @@ public:
         v.end_ = nullptr;
     }
     stable_vector(const stable_vector& v)
-        requires(std::is_copy_constructible_v<T>)
+        requires std::is_copy_constructible_v<T>
     {
         blocks_.reserve(v.blocks_.size());
         try {
@@ -38,7 +38,7 @@ public:
     }
     template <std::ranges::range R>
     stable_vector(const R& r)
-        requires(std::is_constructible_v<T, std::ranges::range_reference_t<R>>)
+        requires std::is_constructible_v<T, std::ranges::range_reference_t<R>>
     {
         try {
             for (auto &v : r) {
@@ -56,7 +56,7 @@ public:
         delete_all();
     }
     stable_vector& operator=(const stable_vector& v)
-        requires(std::is_copy_constructible_v<T>)
+        requires std::is_copy_constructible_v<T>
     {
         if (&v != this)
         {
@@ -99,18 +99,18 @@ public:
         return *this;
     }
     T& push_back(const T& t)
-        requires(std::is_copy_constructible_v<T>)
+        requires std::is_copy_constructible_v<T>
     {
         return grow(t);
     }
     T& push_back(T&& t)
-        requires(std::is_move_constructible_v<T>)
+        requires std::is_move_constructible_v<T>
     {
         return grow(std::move(t));
     }
     template <typename ... Ts>
     T& emplace_back(Ts&& ... ts)
-        requires(std::is_constructible_v<T, Ts...>)
+        requires std::is_constructible_v<T, Ts...>
     {
         return grow(std::forward<Ts>(ts)...);
     }
@@ -223,7 +223,7 @@ public:
     auto rend() noexcept { return std::reverse_iterator(begin());}
     auto rend() const noexcept { return std::reverse_iterator(begin());}
     iterator erase(iterator pos) noexcept
-        requires(std::is_nothrow_move_assignable_v<T>)
+        requires std::is_nothrow_move_assignable_v<T>
     {
         auto e = end();
         if (pos != e) {
@@ -239,7 +239,7 @@ public:
         return pos;
     }
     iterator erase(iterator ib, iterator ie) noexcept
-        requires(std::is_nothrow_move_assignable_v<T>)
+        requires std::is_nothrow_move_assignable_v<T>
     {
         const auto e = end();
         auto rv = ie;
