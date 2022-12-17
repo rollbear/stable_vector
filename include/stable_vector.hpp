@@ -153,6 +153,7 @@ public:
     bool empty() const noexcept { return size_ == 0;}
     [[nodiscard]]
     std::size_t size() const noexcept { return size_; }
+    void clear() { delete_all(); end_ = nullptr; size_ = 0; }
     template <typename TT>
     class iterator_t
     {

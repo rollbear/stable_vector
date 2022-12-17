@@ -18,7 +18,7 @@ public:
     }
     auto byte = input.front();
     input = input.subspan(1);
-    switch (byte % 13)
+    switch (byte % 14)
     {
       case 0:
         if (!v.empty()) {
@@ -97,6 +97,9 @@ public:
       case  12:
         log.push_back("swap");
         return swap;
+      case 13:
+        log.push_back("clear");
+        return clear;
     }
     return {};
   }
@@ -148,6 +151,7 @@ private:
   std::function<void()> swap = [this]() { std::swap(v, other);};
   std::function<void()> erase(size_t idx) { return [this,idx](){ auto i = std::next(v.begin(), idx); v.erase(i); }; }
   std::function<void()> erase(size_t id1, size_t id2) { return [this,id1,id2](){ auto b = std::next(v.begin(), std::min(id1,id2)); auto e = std::next(v.begin(), std::max(id1,id2)); v.erase(b,e);};}
+  std::function<void()> clear = [this]() { v.clear(); };
 };
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
