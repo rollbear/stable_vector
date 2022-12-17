@@ -58,8 +58,8 @@ TEST_CASE("pushed elements can be accessed using operator[]")
 {
     GIVEN("a vector with elements")
     {
-        stable_vector<int> v;
-        for (int i = 0; i < 32; ++i) {
+        stable_vector<size_t> v;
+        for (size_t i = 0; i < 32; ++i) {
             v.push_back(i);
         }
         WHEN("accessed as const instance")
@@ -67,7 +67,7 @@ TEST_CASE("pushed elements can be accessed using operator[]")
             const auto& vc = v;
             THEN("all elements are readable")
             {
-                for (int i = 0; i < 32; ++i) {
+                for (size_t i = 0; i < 32; ++i) {
                     REQUIRE(vc[i] == i);
                 }
             }
@@ -76,7 +76,7 @@ TEST_CASE("pushed elements can be accessed using operator[]")
         {
             THEN("all elements are modifiable")
             {
-                for (int i = 0; i < 32; ++i)
+                for (size_t i = 0; i < 32; ++i)
                 {
                     v[i]++;
                     REQUIRE(v[i] == i+1);
@@ -90,8 +90,8 @@ TEST_CASE("pushed elements can be visited with forward iteration")
 {
     GIVEN("a vector with elements")
     {
-        stable_vector<int> v;
-        for (int i = 0; i < 32; ++i)
+        stable_vector<size_t> v;
+        for (size_t i = 0; i < 32; ++i)
         {
             v.push_back(i);
         }
@@ -100,7 +100,7 @@ TEST_CASE("pushed elements can be visited with forward iteration")
             const auto& vc = v;
             THEN("all elements are readable in the order pushed")
             {
-                for (int i = 0; auto &elem: vc)
+                for (size_t i = 0; auto &elem: vc)
                 {
                     REQUIRE(&elem == &vc[i]);
                     ++i;
@@ -111,10 +111,10 @@ TEST_CASE("pushed elements can be visited with forward iteration")
         {
             THEN("all elements are modifiable in the order pushed")
             {
-                for (int i = 0; auto& elem : v)
+                for (size_t i = 0; auto& elem : v)
                 {
                     elem+= 1;
-                    REQUIRE(v[i] == i+1);
+                    REQUIRE(v[i] == i+1U);
                     ++i;
                 }
             }
@@ -136,7 +136,7 @@ TEST_CASE("pushed elements can be visited with backward iteration")
             const auto& vc = v;
             THEN("all elements are readable in the order pushed")
             {
-                auto i = 31;
+                size_t i = 31;
                 const auto e = vc.rend();
                 for (auto iter = vc.rbegin(); iter != e; ++iter)
                 {
@@ -150,7 +150,7 @@ TEST_CASE("pushed elements can be visited with backward iteration")
         {
             THEN("all elements are modifiable in the order pushed")
             {
-                auto i = 31;
+                size_t i = 31;
                 const auto e = v.rend();
                 for (auto iter = v.rbegin(); iter != e; ++iter)
                 {
@@ -375,7 +375,7 @@ TEST_CASE("throwing constructor on push_back leaves the vector as it was and thr
         REQUIRE_THROWS(v.push_back(-1));
         for (int j = 0; j < i; ++j)
         {
-            REQUIRE(v[j].throw_ == j);
+            REQUIRE(v[size_t(j)].throw_ == j);
         }
     }
 }
@@ -403,9 +403,9 @@ TEST_CASE("single iterator erase move assigns elements one closer to begin")
 {
     GIVEN("a vector with data")
     {
-        stable_vector<std::unique_ptr<int>> v;
-        for (int i = 0; i != 10; ++i) {
-            v.push_back(std::make_unique<int>(i));
+        stable_vector<std::unique_ptr<size_t>> v;
+        for (size_t i = 0; i != 10; ++i) {
+            v.push_back(std::make_unique<size_t>(i));
         }
         WHEN("erasing an element in the middle")
         {
@@ -414,7 +414,7 @@ TEST_CASE("single iterator erase move assigns elements one closer to begin")
             i = v.erase(i);
             THEN("the returned iterator refers to the element that was after the erased")
             {
-                REQUIRE(**i == 4);
+                REQUIRE(**i == 4U);
             }
             AND_THEN("the size is reduced by one")
             {
@@ -449,7 +449,7 @@ TEST_CASE("single iterator erase move assigns elements one closer to begin")
             }
             AND_THEN("all data is intact")
             {
-                for (int n = 0; n != 10; ++n)
+                for (size_t n = 0; n != 10; ++n)
                 {
                     REQUIRE(*v[n] == n);
                 }
@@ -469,7 +469,7 @@ TEST_CASE("single iterator erase move assigns elements one closer to begin")
             }
             AND_THEN("the remaining elements are intact as before")
             {
-                for (int i = 0; i != 9; ++i)
+                for (size_t i = 0; i != 9; ++i)
                 {
                     REQUIRE(*v[i] == i);
                 }
@@ -482,25 +482,25 @@ TEST_CASE("erase range")
 {
     GIVEN("a vector with data")
     {
-        stable_vector<std::unique_ptr<int>> v;
-        for (int i = 0; i != 10; ++i)
+        stable_vector<std::unique_ptr<size_t>> v;
+        for (size_t i = 0; i != 10; ++i)
         {
-            v.push_back(std::make_unique<int>(i));
+            v.push_back(std::make_unique<size_t>(i));
         }
         WHEN("erasing end(),end()")
         {
-            auto i = v.erase(v.end(), v.end());
+            auto it = v.erase(v.end(), v.end());
             THEN("the vector has the same size")
             {
                 REQUIRE(v.size() == 10);
             }
             AND_THEN("the returned iterator is the end iterator")
             {
-                REQUIRE(i == v.end());
+                REQUIRE(it == v.end());
             }
             AND_THEN("the elemenents are untouched")
             {
-                for (int i = 0; i != 10; ++i)
+                for (size_t i = 0; i != 10; ++i)
                 {
                     REQUIRE(*v[i] == i);
                 }
@@ -508,18 +508,18 @@ TEST_CASE("erase range")
         }
         AND_WHEN("erasing begin(),begin()")
         {
-            auto i = v.erase(v.begin(), v.begin());
+            auto it = v.erase(v.begin(), v.begin());
             THEN("the vector has the same size")
             {
                 REQUIRE(v.size() == 10);
             }
             AND_THEN("the returned iterator is begin()")
             {
-                REQUIRE(i == v.begin());
+                REQUIRE(it == v.begin());
             }
             AND_THEN("the elements are untouched")
             {
-                for (int i = 0; i != 10; ++i)
+                for (size_t i = 0; i != 10; ++i)
                 {
                     REQUIRE(*v[i] == i);
                 }
@@ -539,7 +539,7 @@ TEST_CASE("erase range")
             }
             AND_THEN("the elements are untouched")
             {
-                for (int i = 0; i != 10; ++i)
+                for (size_t i = 0; i != 10; ++i)
                 {
                     REQUIRE(*v[i] == i);
                 }
@@ -547,7 +547,7 @@ TEST_CASE("erase range")
         }
         AND_WHEN("erasing begin(),end()")
         {
-            auto i = v.erase(v.begin(), v.end());
+            auto it = v.erase(v.begin(), v.end());
             THEN("the vector becomes empty")
             {
                 REQUIRE(v.empty());
@@ -556,14 +556,14 @@ TEST_CASE("erase range")
             }
             AND_THEN("the returned iterator is end()")
             {
-                REQUIRE(i == v.end());
+                REQUIRE(it == v.end());
             }
         }
         AND_WHEN("erasing a range of size 5 in the middle")
         {
-            auto i = std::next(v.begin(), 2); // 2
-            auto e = std::next(i,5); // 7
-            auto ri = v.erase(i,e);
+            auto it = std::next(v.begin(), 2); // 2
+            auto e = std::next(it,5); // 7
+            auto ri = v.erase(it,e);
             THEN("the size is reduced by 5")
             {
                 REQUIRE(v.size() == 5);

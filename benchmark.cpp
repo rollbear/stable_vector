@@ -16,7 +16,7 @@ template <typename T>
 static size_t measure_populate(benchmark::State& state)
 {
     size_t count = 0;
-    auto max = state.range();
+    auto max = (size_t)state.range();
     for (auto&& _ : state)
     {
         T t;
@@ -32,7 +32,7 @@ template <typename T>
 static size_t measure_destroy(benchmark::State& state)
 {
     size_t count = 0;
-    auto max = state.range();
+    auto max = (size_t)state.range();
     for (auto&& _ : state)
     {
         state.PauseTiming();
@@ -48,7 +48,7 @@ template <typename T>
 static std::size_t  measure_pop_back(benchmark::State& state)
 {
     size_t sum = 0;
-    auto max = state.range();
+    auto max = (size_t)state.range();
     for (auto&& _ : state)
     {
         state.PauseTiming();
@@ -126,28 +126,28 @@ static void pop_back_stable_vector(benchmark::State& state)
 static void iterate_forward_std_vector(benchmark::State& state)
 {
     std::vector<size_t> v;
-    populate(v, state.range());
+    populate(v, (size_t)state.range());
     benchmark::DoNotOptimize(iterate_forward(v, state));
 }
 
 static void iterate_forward_stable_vector(benchmark::State& state)
 {
     stable_vector<size_t> v;
-    populate(v, state.range());
+    populate(v, (size_t)state.range());
     benchmark::DoNotOptimize(iterate_forward(v, state));
 }
 
 static void iterate_backward_std_vector(benchmark::State& state)
 {
     std::vector<size_t> v;
-    populate(v, state.range());
+    populate(v, (size_t)state.range());
     benchmark::DoNotOptimize(iterate_backward(v, state));
 }
 
 static void iterate_backward_stable_vector(benchmark::State& state)
 {
     stable_vector<size_t> v;
-    populate(v, state.range());
+    populate(v, (size_t)state.range());
     benchmark::DoNotOptimize(iterate_backward(v, state));
 }
 

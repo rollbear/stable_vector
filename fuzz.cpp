@@ -114,7 +114,7 @@ private:
     input = input.subspan(sizeof(idx));
     return idx % v.size();
   }
-  std::optional<int8_t> get_count()
+  std::optional<uint8_t> get_count()
   {
     if (input.empty())
     {
@@ -149,8 +149,8 @@ private:
   std::function<void()> iterate_forward = [this]() { long long rv = 0; for (auto& p : v) { rv+= p.count;} return rv;};
   std::function<void()> iterate_backward = [this]() { long long rv = 0; for (auto i = v.rbegin(); i != v.rend(); ++i) { rv+= i->count;} return rv;};
   std::function<void()> swap = [this]() { std::swap(v, other);};
-  std::function<void()> erase(size_t idx) { return [this,idx](){ auto i = std::next(v.begin(), idx); v.erase(i); }; }
-  std::function<void()> erase(size_t id1, size_t id2) { return [this,id1,id2](){ auto b = std::next(v.begin(), std::min(id1,id2)); auto e = std::next(v.begin(), std::max(id1,id2)); v.erase(b,e);};}
+  std::function<void()> erase(size_t idx) { return [this,idx](){ auto i = std::next(v.begin(), (long long)idx); v.erase(i); }; }
+  std::function<void()> erase(size_t id1, size_t id2) { return [this,id1,id2](){ auto b = std::next(v.begin(), (long long)std::min(id1,id2)); auto e = std::next(v.begin(), (long long)std::max(id1,id2)); v.erase(b,e);};}
   std::function<void()> clear = [this]() { v.clear(); };
 };
 
