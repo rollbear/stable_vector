@@ -1,0 +1,58 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build_linux:
+    runs-on: ubuntu-latest
+    container: "ghcr.io/rollbear/${{matrix.config.container}}"
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { container: "clang:15", cxx: "clang++-15", stdlib: "libc++", lflags: "-lc++abi" }
+          - { container: "clang:15", cxx: "clang++-15" }
+          - { container: "gcc:12",   cxx: "g++-12" }
+
+    name: "Linux ${{matrix.config.cxx}} C++20 ${{matrix.config.stdlib}}"
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: "setup"
+        shell: bash
+        run: |
+          STDLIB=""
+          if [ -n "${{matrix.config.stdlib}}" ]
+          then
+            STDLIB="-stdlib=libc++"
+          fi
+          cmake \
+            -S . \
+            -B build \
+            -DCMAKE_CXX_COMPILER=${{matrix.config.cxx}} \
+            -DCMAKE_CXX_FLAGS="${STDLIB} -Wall -Wextra -Wpedantic -Werror --coverage" \
+            -DCMAKE_EXE_LINKER_FLAGS="${{matrix.config.lflags}}" \
+            -DCMAKE_PREFIX_PATH="/usr/local/lib/c++20${{matrix.config.stdlib}}" \
+            -DCMAKE_BUILD_TYPE=Debug
+      - name: "build"
+        run: |
+          cmake --build build -t test_stable_vector
+
+      - name: "test"
+        run: |
+          ./build/test_stable_vector
+          find . -name "*.gcno"
+
+      - name: "collect coverage"
+        run: |
+          COV=`echo ${{matrix.config.cxx}} | grep -q clang && echo "llvm-cov gcov"|| echo gcov`
+          echo ${COV} -abcfu `find . -name "main.cpp.gcno"`
+          ${COV} -abcfu `find . -name "main.cpp.gcno"`
+
+      - name: "upload coverage"
+        uses: codecov/codecov-action@v3
+        with:
+            files: stable_vector.hpp.gcov
+            name: "Linux ${{matrix.config.cxx}} C++20 ${{matrix.config.stdlib}}"
+            fail_ci_if_error: false
+            verbose: true
