@@ -37,7 +37,7 @@ public:
         }
     }
     template <std::ranges::range R>
-    stable_vector(const R& r)
+    explicit stable_vector(const R& r)
         requires std::is_constructible_v<T, std::ranges::range_reference_t<R>>
     {
         try {
