@@ -272,7 +272,7 @@ private:
         //           5   9
         //       2   4   8
         //   0   1   3   7
-        const auto block_id = std::bit_width(idx + 1) - 1;
+        const auto block_id = static_cast<std::size_t>(std::bit_width(idx + 1)) - 1;
         const auto block_offset = idx - (1U << block_id) + 1;
         return blocks_[block_id].begin_[block_offset].obj;
     }
