@@ -4,6 +4,7 @@
 
 
 #include <memory>
+#include <algorithm>
 
 struct immobile {
     immobile& operator=(immobile&&) = delete;
