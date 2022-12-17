@@ -21,13 +21,13 @@ public:
         v.size_ = 0;
         v.end_ = nullptr;
     }
-    stable_vector(const stable_vector& v)
+    stable_vector(const stable_vector& source)
         requires std::is_copy_constructible_v<T>
     {
-        blocks_.reserve(v.blocks_.size());
+        blocks_.reserve(source.blocks_.size());
         try {
-            for (const auto &element: v) {
-                push_back(element);
+            for (const auto &item: source) {
+                push_back(item);
             }
         }
         catch (...)

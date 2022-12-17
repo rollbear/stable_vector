@@ -409,12 +409,12 @@ TEST_CASE("single iterator erase move assigns elements one closer to begin")
         }
         WHEN("erasing an element in the middle")
         {
-            auto i = std::find_if(v.begin(), v.end(),
+            auto it = std::find_if(v.begin(), v.end(),
                                   [](const auto &i) { return *i == 3; });
-            i = v.erase(i);
+            it = v.erase(it);
             THEN("the returned iterator refers to the element that was after the erased")
             {
-                REQUIRE(**i == 4U);
+                REQUIRE(**it == 4U);
             }
             AND_THEN("the size is reduced by one")
             {
@@ -458,14 +458,14 @@ TEST_CASE("single iterator erase move assigns elements one closer to begin")
         AND_WHEN("erasing one before the end iterator")
         {
             auto pos = std::prev(v.end());
-            auto i = v.erase(pos);
+            auto it = v.erase(pos);
             THEN("the size is shrunk by one")
             {
                 REQUIRE(v.size() == 9);
             }
             AND_THEN("the returned iterator is the new end()")
             {
-                REQUIRE(i == v.end());
+                REQUIRE(it == v.end());
             }
             AND_THEN("the remaining elements are intact as before")
             {

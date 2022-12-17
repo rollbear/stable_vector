@@ -120,9 +120,9 @@ private:
     {
       return {};
     }
-    auto v = input.front();
+    auto value = input.front();
     input = input.subspan(1);
-    return v;
+    return value;
   }
   struct throwing
   {
