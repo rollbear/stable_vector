@@ -280,8 +280,10 @@ private:
     {
         if (!blocks_.empty())
         {
-            auto& b = blocks_.back();
-            b.end_ = end_;
+            if constexpr (!std::is_trivially_destructible_v<T>) {
+                auto &b = blocks_.back();
+                b.end_ = end_;
+            }
             blocks_.clear();
         }
 
@@ -342,10 +344,11 @@ private:
         }
         ~block()
         {
-            while (end_ != begin_)
-            {
-                --end_;
-                std::destroy_at(&end_->obj);
+            if constexpr (!std::is_trivially_destructible_v<T>) {
+                while (end_ != begin_) {
+                    --end_;
+                    std::destroy_at(&end_->obj);
+                }
             }
             delete[] begin_;
         }
