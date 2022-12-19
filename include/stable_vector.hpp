@@ -11,7 +11,17 @@ class stable_vector
 {
     union element;
     struct block;
+    template <typename>
+    class iterator_t;
 public:
+    using value_type = T;
+    using reference = value_type&;
+    using const_reference = const value_type&;
+    using pointer = value_type*;
+    using const_pointer = const value_type*;
+    using iterator = iterator_t<value_type>;
+    using const_iterator = iterator_t<const value_type>;
+
     stable_vector() = default;
     stable_vector(stable_vector&& v) noexcept
         : size_(v.size_)
@@ -22,7 +32,7 @@ public:
         v.end_ = nullptr;
     }
     stable_vector(const stable_vector& source)
-        requires std::is_copy_constructible_v<T>
+        requires std::is_copy_constructible_v<value_type>
     {
         blocks_.reserve(source.blocks_.size());
         try {
@@ -38,7 +48,7 @@ public:
     }
     template <std::ranges::range R>
     explicit stable_vector(const R& r)
-        requires std::is_constructible_v<T, std::ranges::range_reference_t<R>>
+        requires std::is_constructible_v<value_type, std::ranges::range_reference_t<R>>
     {
         try {
             for (auto &v : r) {
@@ -56,7 +66,7 @@ public:
         delete_all();
     }
     stable_vector& operator=(const stable_vector& v)
-        requires std::is_copy_constructible_v<T>
+        requires std::is_copy_constructible_v<value_type>
     {
         if (&v != this)
         {
@@ -98,19 +108,19 @@ public:
         blocks_ = std::move(v.blocks_);
         return *this;
     }
-    T& push_back(const T& t)
-        requires std::is_copy_constructible_v<T>
+    reference& push_back(const_reference t)
+        requires std::is_copy_constructible_v<value_type>
     {
         return grow(t);
     }
-    T& push_back(T&& t)
-        requires std::is_move_constructible_v<T>
+    reference& push_back(value_type&& t)
+        requires std::is_move_constructible_v<value_type>
     {
         return grow(std::move(t));
     }
     template <typename ... Ts>
-    T& emplace_back(Ts&& ... ts)
-        requires std::is_constructible_v<T, Ts...>
+    reference& emplace_back(Ts&& ... ts)
+        requires std::is_constructible_v<value_type, Ts...>
     {
         return grow(std::forward<Ts>(ts)...);
     }
@@ -135,83 +145,25 @@ public:
         --size_;
     }
     [[nodiscard]]
-    T& operator[](std::size_t idx) noexcept
+    reference operator[](std::size_t idx) noexcept
     {
         return element_at(idx);
     }
     [[nodiscard]]
-    const T& operator[](std::size_t idx) const noexcept
+    const_reference operator[](std::size_t idx) const noexcept
     {
         return element_at(idx);
     }
     [[nodiscard]]
-    T& front() noexcept { return blocks_.front().begin_->obj; }
-    const T& front() const noexcept { return blocks_.front().begin_->obj; }
-    T& back() noexcept { return std::prev(end_)->obj; }
-    const T& back() const noexcept { return std::prev(end_)->obj; }
+    reference front() noexcept { return blocks_.front().begin_->obj; }
+    const_reference front() const noexcept { return blocks_.front().begin_->obj; }
+    reference back() noexcept { return std::prev(end_)->obj; }
+    const_reference back() const noexcept { return std::prev(end_)->obj; }
     [[nodiscard]]
     bool empty() const noexcept { return size_ == 0;}
     [[nodiscard]]
     std::size_t size() const noexcept { return size_; }
     void clear() { delete_all(); end_ = nullptr; size_ = 0; }
-    template <typename TT>
-    class iterator_t
-    {
-        template <typename> friend class iterator_t;
-        element* current_element;
-        const block* current_block;
-        friend class stable_vector<T>;
-        iterator_t(element* e, const block* b) : current_element(e), current_block(b) {}
-    public:
-        using value_type = T;
-        using reference = T&;
-        using pointer = T*;
-        using difference_type = std::ptrdiff_t;
-        using iterator_category = std::bidirectional_iterator_tag;
-
-        iterator_t() = default;
-        T& operator*() const noexcept { return current_element->obj; }
-        T* operator->() const noexcept { return &current_element->obj; }
-        iterator_t& operator++() noexcept
-        {
-            ++current_element;
-            if (current_element == current_block->end_ && !current_block->last_)
-            {
-                ++current_block;
-                current_element = current_block->begin_;
-            }
-            return *this;
-        }
-        iterator_t operator++(int) noexcept
-        {
-            auto copy = *this;
-            ++*this;
-            return copy;
-        }
-        iterator_t& operator--() noexcept
-        {
-            if (current_element == current_block->begin_)
-            {
-                --current_block;
-                current_element = current_block->end_;
-            }
-            --current_element;
-            return *this;
-        }
-        iterator_t operator--(int) noexcept
-        {
-            auto copy = *this;
-            --*this;
-            return copy;
-        }
-        bool operator==(iterator_t rh) const noexcept
-        {
-            return current_element == rh.current_element;
-        }
-        operator iterator_t<const TT>() const noexcept { return { current_element, current_block }; }
-    };
-    using iterator = iterator_t<T>;
-    using const_iterator = iterator_t<const T>;
     iterator begin() noexcept { if (empty()) return { nullptr, nullptr }; auto& b = blocks_.front(); return { b.begin_, &b }; }
     const_iterator begin() const noexcept { if (empty()) return { nullptr, nullptr }; auto& b = blocks_.front(); return { b.begin_, &b }; }
     const iterator cbegin() const noexcept { if (empty()) return { nullptr, nullptr }; auto& b = blocks_.front(); return { b.begin_, &b }; }
@@ -223,7 +175,7 @@ public:
     auto rend() noexcept { return std::reverse_iterator(begin());}
     auto rend() const noexcept { return std::reverse_iterator(begin());}
     iterator erase(iterator pos) noexcept
-        requires std::is_nothrow_move_assignable_v<T>
+        requires std::is_nothrow_move_assignable_v<value_type>
     {
         auto e = end();
         if (pos != e) {
@@ -239,7 +191,7 @@ public:
         return pos;
     }
     iterator erase(iterator ib, iterator ie) noexcept
-        requires std::is_nothrow_move_assignable_v<T>
+        requires std::is_nothrow_move_assignable_v<value_type>
     {
         const auto e = end();
         auto rv = ie;
@@ -249,7 +201,7 @@ public:
             ++ie; ++ib;
         }
         bool at_end = false;
-        while (!empty() && end_ != ib.current_element)
+        while (!empty() && &end_->obj != ib.operator->())
         {
             at_end = at_end | (rv == end());
             pop_back();
@@ -262,7 +214,7 @@ public:
         return rv;
     }
 private:
-    T& element_at(std::size_t idx) const noexcept
+    reference element_at(std::size_t idx) const noexcept
     {
         //              14
         //              13
@@ -280,7 +232,7 @@ private:
     {
         if (!blocks_.empty())
         {
-            if constexpr (!std::is_trivially_destructible_v<T>) {
+            if constexpr (!std::is_trivially_destructible_v<value_type>) {
                 auto &b = blocks_.back();
                 b.end_ = end_;
             }
@@ -289,7 +241,7 @@ private:
 
     }
     template <typename ... Ts>
-    T& grow(Ts&& ... ts)
+    reference grow(Ts&& ... ts)
     {
         const auto old_end = end_;
         if (empty() || end_ == blocks_.back().end_)
@@ -301,7 +253,7 @@ private:
             }
         }
         try {
-            new (&end_->obj) T(std::forward<Ts>(ts)...);
+            new (&end_->obj) value_type(std::forward<Ts>(ts)...);
         }
         catch (...)
         {
@@ -324,7 +276,7 @@ private:
     {
         element() {}
         ~element() {}
-        T obj;
+        value_type obj;
     };
     struct block {
         element* begin_;
@@ -344,7 +296,7 @@ private:
         }
         ~block()
         {
-            if constexpr (!std::is_trivially_destructible_v<T>) {
+            if constexpr (!std::is_trivially_destructible_v<value_type>) {
                 while (end_ != begin_) {
                     --end_;
                     std::destroy_at(&end_->obj);
@@ -356,6 +308,63 @@ private:
     std::size_t size_ = 0;
     element* end_ = nullptr;
     std::vector<block> blocks_;
+};
+
+template <typename T> template <typename TT>
+class stable_vector<T>::iterator_t
+{
+    template <typename> friend class iterator_t;
+    element* current_element;
+    const block* current_block;
+public:
+    using value_type = T;
+    using reference = TT&;
+    using pointer = TT*;
+    using difference_type = std::ptrdiff_t;
+    using iterator_category = std::bidirectional_iterator_tag;
+
+    iterator_t() = default;
+    reference operator*() const noexcept { return current_element->obj; }
+    pointer operator->() const noexcept { return &current_element->obj; }
+    iterator_t& operator++() noexcept
+    {
+        ++current_element;
+        if (current_element == current_block->end_ && !current_block->last_)
+        {
+            ++current_block;
+            current_element = current_block->begin_;
+        }
+        return *this;
+    }
+    iterator_t operator++(int) noexcept
+    {
+        auto copy = *this;
+        ++*this;
+        return copy;
+    }
+    iterator_t& operator--() noexcept
+    {
+        if (current_element == current_block->begin_)
+        {
+            --current_block;
+            current_element = current_block->end_;
+        }
+        --current_element;
+        return *this;
+    }
+    iterator_t operator--(int) noexcept
+    {
+        auto copy = *this;
+        --*this;
+        return copy;
+    }
+    bool operator==(iterator_t rh) const noexcept
+    {
+        return current_element == rh.current_element;
+    }
+    operator iterator_t<const TT>() const noexcept { return { current_element, current_block }; }
+
+    iterator_t(element* e, const block* b) : current_element(e), current_block(b) {}
 };
 
 
