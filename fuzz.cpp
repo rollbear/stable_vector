@@ -127,7 +127,15 @@ private:
   struct throwing
   {
     throwing(uint8_t c) : count(c) { if (count == 0) { throw "construct"; } }
-    throwing(const throwing& t) : count(t.count - 1), p(t.p) { if (t.count == 0) { throw "copy";} }
+    throwing(const throwing& t)
+    : count(t.count - 1)
+    , p(t.p)
+    {
+        if (t.count == 0)
+        {
+            throw "copy";
+        }
+    }
     throwing(throwing&&) = default;
     throwing& operator=(const throwing& t) { count = t.count - 1; if (t.count == 0) { throw "assign";} p = t.p; return *this; }
     throwing& operator=(throwing&&) = default;

@@ -1,10 +1,11 @@
 #ifndef STABLE_VECTOR_STABLE_VECTOR_HPP_INCLUDED
 #define STABLE_VECTOR_STABLE_VECTOR_HPP_INCLUDED
 
-#include <vector>
 #include <utility>
 #include <bit>
 #include <ranges>
+#include <memory_resource>
+#include <vector>
 
 template <typename T>
 class stable_vector
@@ -14,6 +15,7 @@ class stable_vector
     template <typename>
     class iterator_t;
 public:
+    using allocator_type = std::pmr::polymorphic_allocator<T>;
     using value_type = T;
     using reference = value_type&;
     using const_reference = const value_type&;
@@ -23,8 +25,10 @@ public:
     using const_iterator = iterator_t<const value_type>;
 
     stable_vector() = default;
+    explicit stable_vector(allocator_type allocator) : allocator_(allocator) {}
     stable_vector(stable_vector&& v) noexcept
-        : size_(v.size_)
+        : allocator_(v.allocator_)
+        , size_(v.size_)
         , end_(v.end_)
         , blocks_(std::move(v.blocks_))
     {
@@ -85,17 +89,45 @@ public:
             catch (...)
             {
                 size_ = old_size;
-                if (!blocks_.empty())
+                while (!blocks_.empty())
                 {
-                    blocks_.back().end_ = end_;
+                    auto& last_block = blocks_.back();
+                    if constexpr (!std::is_trivially_destructible_v<value_type>) {
+                        if (!last_block.last_) {
+                            end_ = last_block.end_;
+                        }
+                        while (end_ != last_block.begin_)
+                        {
+                            --end_;
+                            std::destroy_at(end_);
+                        }
+                    }
+                    auto idx = blocks_.size() - 1;
+                    allocator_.deallocate(last_block.begin_,  1U << idx);
+                    blocks_.pop_back();
                 }
                 end_ = old_end;
-                blocks_ = std::move(old_blocks);
+                std::swap(blocks_, old_blocks);
                 throw ;
             }
-            if (old_size != 0U)
+            while (!old_blocks.empty())
             {
-                old_blocks.back().end_ = old_end;
+                auto &back = old_blocks.back();
+                if (!back.last_)
+                {
+                    old_end = back.end_;
+                }
+                if (!std::is_trivially_destructible_v<value_type>)
+                {
+                    while (old_end != back.begin_)
+                    {
+                        --old_end;
+                        std::destroy_at(old_end);
+                    }
+                }
+                auto idx = old_blocks.size() - 1;
+                allocator_.deallocate(back.begin_, 1U << idx);
+                old_blocks.pop_back();
             }
         }
         return *this;
@@ -105,7 +137,8 @@ public:
         delete_all();
         size_ = std::exchange(v.size_, 0);
         end_ = std::exchange(v.end_, nullptr);
-        blocks_ = std::move(v.blocks_);
+        std::swap(blocks_, v.blocks_);
+        v.blocks_.clear();
         return *this;
     }
     reference& push_back(const_reference t)
@@ -127,11 +160,11 @@ public:
     void pop_back() noexcept
     {
         --end_;
-        std::destroy_at(&end_->obj);
+        std::destroy_at(end_);
         if (end_ == blocks_.back().begin_)
         {
-            blocks_.back().end_ = end_;
             blocks_.pop_back();
+            allocator_.deallocate(end_, 1U << blocks_.size());
             if (blocks_.empty())
             {
                 end_ = nullptr;
@@ -155,10 +188,10 @@ public:
         return element_at(idx);
     }
     [[nodiscard]]
-    reference front() noexcept { return blocks_.front().begin_->obj; }
-    const_reference front() const noexcept { return blocks_.front().begin_->obj; }
-    reference back() noexcept { return std::prev(end_)->obj; }
-    const_reference back() const noexcept { return std::prev(end_)->obj; }
+    reference front() noexcept { return *blocks_.front().begin_; }
+    const_reference front() const noexcept { return *blocks_.front().begin_; }
+    reference back() noexcept { return *std::prev(end_); }
+    const_reference back() const noexcept { return *std::prev(end_); }
     [[nodiscard]]
     bool empty() const noexcept { return size_ == 0;}
     [[nodiscard]]
@@ -201,7 +234,7 @@ public:
             ++ie; ++ib;
         }
         bool at_end = false;
-        while (!empty() && &end_->obj != ib.operator->())
+        while (!empty() && end_ != ib.operator->())
         {
             at_end = at_end | (rv == end());
             pop_back();
@@ -212,6 +245,10 @@ public:
             rv = end();
         }
         return rv;
+    }
+    allocator_type get_allocator() const noexcept
+    {
+        return allocator_;
     }
 private:
     reference element_at(std::size_t idx) const noexcept
@@ -226,17 +263,27 @@ private:
         //   0   1   3   7
         const auto block_id = static_cast<std::size_t>(std::bit_width(idx + 1)) - 1;
         const auto block_offset = idx - (1U << block_id) + 1;
-        return blocks_[block_id].begin_[block_offset].obj;
+        return blocks_[block_id].begin_[block_offset];
     }
     void delete_all() noexcept
     {
-        if (!blocks_.empty())
+        while (!blocks_.empty())
         {
-            if constexpr (!std::is_trivially_destructible_v<value_type>) {
-                auto &b = blocks_.back();
-                b.end_ = end_;
+            auto& last_block = blocks_.back();
+            if (!last_block.last_)
+            {
+                end_ = last_block.end_;
             }
-            blocks_.clear();
+            if constexpr (!std::is_trivially_destructible_v<value_type>) {
+                while (end_ != last_block.begin_)
+                {
+                    --end_;
+                    std::destroy_at(end_);
+                }
+            }
+            auto idx = blocks_.size() - 1;
+            allocator_.deallocate(blocks_.back().begin_, 1U << idx);
+            blocks_.pop_back();
         }
 
     }
@@ -247,20 +294,25 @@ private:
         if (empty() || end_ == blocks_.back().end_)
         {
             const std::size_t size = 1 << blocks_.size();
-            end_ = blocks_.emplace_back(size).begin_;
+            end_ = allocator_.allocate(size);
+            blocks_.push_back({end_, end_ + size});
             if (blocks_.size() > 1) {
                 blocks_[blocks_.size() - 2].last_ = false;
             }
         }
         try {
-            new (&end_->obj) value_type(std::forward<Ts>(ts)...);
+            std::uninitialized_construct_using_allocator<value_type>(end_,
+                                                                     allocator_,
+                                                                     std::forward<Ts>(ts)...);
         }
         catch (...)
         {
-            if (blocks_.back().begin_ == end_)
+            auto& last_block = blocks_.back();
+            if (last_block.begin_ == end_)
             {
-                blocks_.back().end_ = end_;
+                auto begin = last_block.begin_;
                 blocks_.pop_back();
+                allocator_.deallocate(begin, 1U << blocks_.size());
                 if (!blocks_.empty()) {
                     blocks_.back().last_ = true;
                 }
@@ -269,53 +321,23 @@ private:
             throw;
         }
         ++size_;
-        return (end_++)->obj;
+        return *end_++;
 
     }
-    union element
-    {
-        element() {}
-        ~element() {}
-        value_type obj;
-    };
     struct block {
-        element* begin_;
-        element* end_;
+        pointer begin_;
+        pointer end_;
         bool last_ = true;
-
-        block(std::size_t n)
-        : begin_(new element[n])
-        , end_(begin_ + n)
-        {}
-        block(block&& r)
-        : begin_(std::exchange(r.begin_, nullptr))
-        , end_(std::exchange(r.end_, nullptr))
-        , last_(r.last_)
-        {
-
-        }
-        ~block()
-        {
-            if constexpr (!std::is_trivially_destructible_v<value_type>) {
-                while (end_ != begin_) {
-                    --end_;
-                    std::destroy_at(&end_->obj);
-                }
-            }
-            delete[] begin_;
-        }
     };
+    [[no_unique_address]] allocator_type allocator_;
     std::size_t size_ = 0;
-    element* end_ = nullptr;
-    std::vector<block> blocks_;
+    pointer end_ = nullptr;
+    std::pmr::vector<block> blocks_{allocator_};
 };
 
 template <typename T> template <typename TT>
 class stable_vector<T>::iterator_t
 {
-    template <typename> friend class iterator_t;
-    element* current_element;
-    const block* current_block;
 public:
     using value_type = T;
     using reference = TT&;
@@ -324,8 +346,8 @@ public:
     using iterator_category = std::bidirectional_iterator_tag;
 
     iterator_t() = default;
-    reference operator*() const noexcept { return current_element->obj; }
-    pointer operator->() const noexcept { return &current_element->obj; }
+    reference operator*() const noexcept { return *current_element; }
+    pointer operator->() const noexcept { return current_element; }
     iterator_t& operator++() noexcept
     {
         ++current_element;
@@ -364,7 +386,12 @@ public:
     }
     operator iterator_t<const TT>() const noexcept { return { current_element, current_block }; }
 
-    iterator_t(element* e, const block* b) : current_element(e), current_block(b) {}
+    iterator_t(pointer e, const block* b) : current_element(e), current_block(b) {}
+private:
+    template <typename> friend class iterator_t;
+    pointer current_element;
+    const block* current_block;
+
 };
 
 
