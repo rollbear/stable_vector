@@ -159,23 +159,10 @@ public:
     }
     void pop_back() noexcept
     {
+        --size_;
         --end_;
         std::destroy_at(end_);
-        if (end_ == blocks_.back().begin_)
-        {
-            blocks_.pop_back();
-            allocator_.deallocate(end_, 1U << blocks_.size());
-            if (blocks_.empty())
-            {
-                end_ = nullptr;
-            }
-            else
-            {
-                blocks_.back().last_ = true;
-                end_ = blocks_.back().end_;
-            }
-        }
-        --size_;
+        shrink();
     }
     [[nodiscard]]
     reference operator[](std::size_t idx) noexcept
@@ -290,7 +277,6 @@ private:
     template <typename ... Ts>
     reference grow(Ts&& ... ts)
     {
-        const auto old_end = end_;
         if (empty() || end_ == blocks_.back().end_)
         {
             const std::size_t size = 1 << blocks_.size();
@@ -307,21 +293,29 @@ private:
         }
         catch (...)
         {
-            auto& last_block = blocks_.back();
-            if (last_block.begin_ == end_)
-            {
-                auto begin = last_block.begin_;
-                blocks_.pop_back();
-                allocator_.deallocate(begin, 1U << blocks_.size());
-                if (!blocks_.empty()) {
-                    blocks_.back().last_ = true;
-                }
-                end_ = old_end;
-            }
+            shrink();
             throw;
         }
         ++size_;
         return *end_++;
+
+    }
+    void shrink()
+    {
+        if (end_ == blocks_.back().begin_)
+        {
+            blocks_.pop_back();
+            allocator_.deallocate(end_, 1U << blocks_.size());
+            if (blocks_.empty())
+            {
+                end_ = nullptr;
+            }
+            else
+            {
+                blocks_.back().last_ = true;
+                end_ = blocks_.back().end_;
+            }
+        }
 
     }
     struct block {
