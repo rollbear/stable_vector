@@ -88,47 +88,13 @@ public:
             }
             catch (...)
             {
+                delete_all(blocks_, end_);
                 size_ = old_size;
-                while (!blocks_.empty())
-                {
-                    auto& last_block = blocks_.back();
-                    if constexpr (!std::is_trivially_destructible_v<value_type>) {
-                        if (!last_block.last_) {
-                            end_ = last_block.end_;
-                        }
-                        while (end_ != last_block.begin_)
-                        {
-                            --end_;
-                            std::destroy_at(end_);
-                        }
-                    }
-                    auto idx = blocks_.size() - 1;
-                    allocator_.deallocate(last_block.begin_,  1U << idx);
-                    blocks_.pop_back();
-                }
                 end_ = old_end;
                 std::swap(blocks_, old_blocks);
                 throw ;
             }
-            while (!old_blocks.empty())
-            {
-                auto &back = old_blocks.back();
-                if (!back.last_)
-                {
-                    old_end = back.end_;
-                }
-                if (!std::is_trivially_destructible_v<value_type>)
-                {
-                    while (old_end != back.begin_)
-                    {
-                        --old_end;
-                        std::destroy_at(old_end);
-                    }
-                }
-                auto idx = old_blocks.size() - 1;
-                allocator_.deallocate(back.begin_, 1U << idx);
-                old_blocks.pop_back();
-            }
+            delete_all(old_blocks, old_end);
         }
         return *this;
     }
@@ -254,25 +220,30 @@ private:
     }
     void delete_all() noexcept
     {
-        while (!blocks_.empty())
+        delete_all(blocks_, end_);
+    }
+    static
+    void delete_all(std::pmr::vector<block>& blocks, pointer end) noexcept
+    {
+        allocator_type allocator = blocks.get_allocator();
+        while (!blocks.empty())
         {
-            auto& last_block = blocks_.back();
+            auto& last_block = blocks.back();
             if (!last_block.last_)
             {
-                end_ = last_block.end_;
+                end = last_block.end_;
             }
             if constexpr (!std::is_trivially_destructible_v<value_type>) {
-                while (end_ != last_block.begin_)
+                while (end != last_block.begin_)
                 {
-                    --end_;
-                    std::destroy_at(end_);
+                    --end;
+                    std::destroy_at(end);
                 }
             }
-            auto idx = blocks_.size() - 1;
-            allocator_.deallocate(blocks_.back().begin_, 1U << idx);
-            blocks_.pop_back();
+            const auto idx = blocks.size() - 1;
+            allocator.deallocate(last_block.begin_, 1U << idx);
+            blocks.pop_back();
         }
-
     }
     template <typename ... Ts>
     reference grow(Ts&& ... ts)
