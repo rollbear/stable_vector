@@ -23,7 +23,7 @@ install(FILES stable_vector-config.cmake ${CMAKE_CURRENT_BINARY_DIR}/stable_vect
         DESTINATION lib/cmake/stable_vector COMPONENT Devel)
 install(DIRECTORY "include" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 
-if (MASTER_PROJECT AND CMAKE_BUILD_TYPE MATCHES Debug)
+if (MASTER_PROJECT)
     set(CMAKE_CXX_STANDARD_REQUIRED YES)
     set(CMAKE_CXX_EXTENSIONS OFF)
 
