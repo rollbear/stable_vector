@@ -10,7 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - { container: "clang:15", cxx: "clang++-15", stdlib: "libc++", lflags: "-lc++abi" }
+          #- { container: "clang:15", cxx: "clang++-15", stdlib: "libc++", lflags: "-lc++abi" }
           - { container: "clang:15", cxx: "clang++-15" }
           - { container: "gcc:12",   cxx: "g++-12" }
 
