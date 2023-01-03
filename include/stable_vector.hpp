@@ -45,6 +45,14 @@ public:
     explicit stable_vector(const R& r, allocator_type alloc = allocator_type{})
         requires std::is_constructible_v<value_type, std::ranges::range_reference_t<R>>;
 
+    explicit stable_vector(std::initializer_list<value_type> v,
+                           allocator_type alloc = allocator_type{})
+        requires std::is_copy_constructible_v<value_type>;
+
+    template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel>
+    stable_vector(Iterator i, Sentinel e, allocator_type alloc=allocator_type{})
+        requires std::is_constructible_v<T, typename std::iterator_traits<Iterator>::value_type>;
+
     ~stable_vector();
 
     auto operator=(const stable_vector& v) -> stable_vector&
@@ -252,14 +260,24 @@ requires std::is_copy_constructible_v<T>
     }
 }
 
-template <typename T, typename Alloc> template <std::ranges::range R>
-stable_vector<T, Alloc>::stable_vector(const R& r, allocator_type alloc)
-requires std::is_constructible_v<value_type, std::ranges::range_reference_t<R>>
-    : allocator_(alloc)
+template <typename T, typename Alloc>
+stable_vector<T, Alloc>::stable_vector(std::initializer_list<value_type> v,
+                                       allocator_type alloc)
+requires std::is_copy_constructible_v<T>
+    : stable_vector(v.begin(), v.end(), alloc)
+{
+}
+
+
+template <typename T, typename Alloc> template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel>
+stable_vector<T, Alloc>::stable_vector(Iterator i, Sentinel e, allocator_type alloc)
+requires std::is_constructible_v<T, typename std::iterator_traits<Iterator>::value_type>
+: allocator_(alloc)
 {
     try {
-        for (auto &v : r) {
-            emplace_back(v);
+        while (i != e)
+        {
+            emplace_back(*i++);
         }
     }
     catch (...)
@@ -267,6 +285,14 @@ requires std::is_constructible_v<value_type, std::ranges::range_reference_t<R>>
         delete_all();
         throw;
     }
+
+}
+
+template <typename T, typename Alloc> template <std::ranges::range R>
+stable_vector<T, Alloc>::stable_vector(const R& r, allocator_type alloc)
+requires std::is_constructible_v<value_type, std::ranges::range_reference_t<R>>
+    : stable_vector(std::begin(r), std::end(r), alloc)
+{
 }
 
 template <typename T, typename Alloc>
