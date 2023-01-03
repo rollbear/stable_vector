@@ -586,3 +586,203 @@ TEST_CASE("erase range")
         }
     }
 }
+
+struct counting_memory_resource : std::pmr::memory_resource
+{
+    size_t current_allocations = 0;
+    size_t current_allocated_bytes = 0;
+    size_t allocations = 0;
+    size_t allocated_bytes = 0;
+    size_t deallocations = 0;
+    size_t deallocated_bytes = 0;
+private:
+    void* do_allocate(size_t bytes, size_t alignment) override
+    {
+        void* addr = operator new(bytes, std::align_val_t(alignment));
+        ++allocations; ++current_allocations;
+        allocated_bytes += bytes; current_allocated_bytes+= bytes;
+        return addr;
+    }
+    void do_deallocate(void* addr, size_t bytes, size_t alignment) noexcept override
+    {
+        ++deallocations; --current_allocations;
+        deallocated_bytes+= bytes; current_allocated_bytes -= bytes;
+        operator delete(addr, std::align_val_t(alignment));
+    }
+    bool do_is_equal(const std::pmr::memory_resource& rh) const noexcept override
+    {
+        return &rh == this;
+    }
+};
+
+TEST_CASE("PMR forwards to PMR enabled class")
+{
+    counting_memory_resource mem_nonfwd;
+    counting_memory_resource mem_fwd;
+
+    {
+        pmr::stable_vector<std::string> vs(&mem_nonfwd);
+        pmr::stable_vector<std::pmr::string> v(&mem_fwd);
+
+        v.emplace_back("woohoo a longish string with much nonsense");
+        vs.emplace_back("woohoo a longish string with much nonsense");
+
+        REQUIRE(mem_fwd.current_allocations == mem_nonfwd.current_allocations + 1);
+        REQUIRE(mem_nonfwd.deallocations == 0);
+        REQUIRE(mem_fwd.deallocations == 0);
+    }
+    REQUIRE(mem_fwd.current_allocations == 0);
+    REQUIRE(mem_nonfwd.current_allocations == 0);
+}
+
+TEST_CASE("move assign moves when using the same rmemory esource")
+{
+    counting_memory_resource mem;
+
+    pmr::stable_vector<std::pmr::string> v1(&mem);
+    pmr::stable_vector<std::pmr::string> v2(&mem);
+
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+
+    v2.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+    v2.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+
+    auto addr0 = &v2[0];
+    auto addr1 = &v2[1];
+
+    v1 = std::move(v2);
+
+    REQUIRE(&v1[0] == addr0);
+    REQUIRE(&v1[1] == addr1);
+}
+
+TEST_CASE("move assign copies when using different memory resources")
+{
+    counting_memory_resource mem1;
+    counting_memory_resource mem2;
+
+    pmr::stable_vector<std::pmr::string> v1(&mem1);
+    pmr::stable_vector<std::pmr::string> v2(&mem2);
+
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+
+    v2.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+    v2.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+
+    auto addr0 = &v2[0];
+    auto addr1 = &v2[1];
+
+    v1 = std::move(v2);
+
+    REQUIRE(&v1[0] != addr0);
+    REQUIRE(&v1[1] != addr1);
+}
+
+TEST_CASE("move construct keeps the memory resource")
+{
+    counting_memory_resource mem;
+
+    pmr::stable_vector<std::pmr::string> v1(&mem);
+
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+
+    auto v2 = std::move(v1);
+
+    REQUIRE(v2.get_allocator().resource() == &mem);
+}
+
+TEST_CASE("copy construct with explicit allocator uses that allocator")
+{
+    counting_memory_resource mem1;
+
+    pmr::stable_vector<std::pmr::string> v1(&mem1);
+
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+
+    counting_memory_resource mem2;
+    auto v2 = stable_vector(v1, &mem2);
+
+    REQUIRE(v2.get_allocator().resource() == &mem2);
+
+    REQUIRE(mem1.current_allocations == mem2.current_allocations);
+}
+
+TEST_CASE("copy construct with explicit allocator returns mem if copy throws")
+{
+    counting_memory_resource mem1;
+
+    pmr::stable_vector<throw_on_copy> v1(&mem1);
+
+    v1.emplace_back(1);
+    v1.emplace_back(2);
+    v1.emplace_back(-1); // throws
+    v1.emplace_back(4);
+
+    counting_memory_resource mem2;
+
+    REQUIRE_THROWS(stable_vector(v1, &mem2));
+    REQUIRE(mem2.current_allocations == 0);
+}
+
+TEST_CASE("move construct with explicit allocator moves all when same allocator")
+{
+    counting_memory_resource mem;
+
+    pmr::stable_vector<std::pmr::string> v1(&mem);
+
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+
+    auto* addr2 = &v1[2];
+    auto v2 = stable_vector(std::move(v1), &mem);
+
+    REQUIRE(v2.get_allocator().resource() == &mem);
+    REQUIRE(&v2[2] == addr2);
+}
+
+TEST_CASE("move construct with explicit allocator does elemeentwise move if different allocators")
+{
+    counting_memory_resource mem1;
+
+    pmr::stable_vector<std::string> v1(&mem1);
+
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+    v1.emplace_back("123456789abcdefghijklmnopqrstuvwxyz");
+
+    auto* addr2 = &v1[2];
+    auto* str2 = v1[2].data();
+
+    counting_memory_resource mem2;
+    auto v2 = stable_vector(std::move(v1), &mem2);
+    REQUIRE(!v1.empty());
+    REQUIRE(v2.get_allocator().resource() == &mem2);
+    REQUIRE(&v2[2] != addr2);
+    REQUIRE(v2[2].data() == str2);
+}
+
+TEST_CASE("construct from range and allocator uses said allocator")
+{
+    counting_memory_resource mem;
+    pmr::stable_vector<std::pmr::string> v(
+        std::initializer_list<const char*>
+            {
+            "foo",
+            "bar",
+            "1234567890abcdefghijklmnopqrstuvwxyz"
+        },
+        &mem);
+    REQUIRE(v.size() == 3);
+    REQUIRE(v[0].get_allocator().resource() == &mem);
+    REQUIRE(mem.current_allocations > 3);
+}
+

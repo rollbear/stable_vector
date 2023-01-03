@@ -7,7 +7,10 @@
 #include <memory_resource>
 #include <vector>
 
-template <typename T>
+template <
+    typename T,
+    typename Alloc = std::allocator<T>
+>
 class stable_vector
 {
     union element;
@@ -15,7 +18,8 @@ class stable_vector
     template <typename>
     class iterator_t;
 public:
-    using allocator_type = std::pmr::polymorphic_allocator<T>;
+    using allocator_type = Alloc;
+    using allocator_traits = std::allocator_traits<allocator_type>;
     using value_type = T;
     using reference = value_type&;
     using const_reference = const value_type&;
@@ -27,16 +31,52 @@ public:
     stable_vector() = default;
     explicit stable_vector(allocator_type allocator) : allocator_(allocator) {}
     stable_vector(stable_vector&& v) noexcept
-        : allocator_(v.allocator_)
-        , size_(v.size_)
-        , end_(v.end_)
+        : allocator_(std::move(v.allocator_))
+        , size_(std::exchange(v.size_, 0))
+        , end_(std::exchange(v.end_, nullptr))
         , blocks_(std::move(v.blocks_))
     {
-        v.size_ = 0;
-        v.end_ = nullptr;
     }
+    stable_vector(stable_vector&& v, allocator_type alloc)
+    : allocator_(std::move(alloc))
+    {
+        if constexpr (!std::allocator_traits<allocator_type>::is_always_equal::value)
+        {
+            if (allocator_ != v.get_allocator())
+            {
+                blocks_.reserve(v.blocks_.size());
+                for (auto&& eleme : v)
+                {
+                    push_back(std::move(eleme));
+                }
+                return;
+            }
+        }
+        size_ = std::exchange(v.size_, 0);
+        end_ = std::exchange(v.end_, nullptr);
+        blocks_= std::move(v.blocks_);
+    }
+
     stable_vector(const stable_vector& source)
         requires std::is_copy_constructible_v<value_type>
+            : allocator_(std::allocator_traits<allocator_type>::select_on_container_copy_construction(
+        source.get_allocator()))
+    {
+        blocks_.reserve(source.blocks_.size());
+        try {
+            for (const auto &item: source) {
+                push_back(item);
+            }
+        }
+        catch (...)
+        {
+            delete_all();
+            throw;
+        }
+    }
+    stable_vector(const stable_vector& source, allocator_type alloc)
+       requires std::is_copy_constructible_v<value_type>
+           : allocator_(alloc)
     {
         blocks_.reserve(source.blocks_.size());
         try {
@@ -51,8 +91,9 @@ public:
         }
     }
     template <std::ranges::range R>
-    explicit stable_vector(const R& r)
+    explicit stable_vector(const R& r, allocator_type alloc = allocator_type{})
         requires std::is_constructible_v<value_type, std::ranges::range_reference_t<R>>
+        : allocator_(alloc)
     {
         try {
             for (auto &v : r) {
@@ -99,7 +140,16 @@ public:
         return *this;
     }
     stable_vector& operator=(stable_vector&& v) noexcept
+        requires (std::allocator_traits<allocator_type>::is_always_equal::value
+                 || std::is_copy_constructible_v<value_type>)
     {
+        if constexpr (!typename std::allocator_traits<allocator_type>::is_always_equal{})
+        {
+            if (get_allocator() != v.get_allocator())
+            {
+                return operator=(v); // copy;
+            }
+        }
         delete_all();
         size_ = std::exchange(v.size_, 0);
         end_ = std::exchange(v.end_, nullptr);
@@ -222,8 +272,9 @@ private:
     {
         delete_all(blocks_, end_);
     }
+    template <typename Vector>
     static
-    void delete_all(std::pmr::vector<block>& blocks, pointer end) noexcept
+    void delete_all(Vector& blocks, pointer end) noexcept
     {
         allocator_type allocator = blocks.get_allocator();
         while (!blocks.empty())
@@ -297,12 +348,13 @@ private:
     [[no_unique_address]] allocator_type allocator_;
     std::size_t size_ = 0;
     pointer end_ = nullptr;
-    std::pmr::vector<block> blocks_{allocator_};
+    std::vector<block, typename allocator_traits::template rebind_alloc<block>> blocks_{allocator_};
 };
 
-template <typename T> template <typename TT>
-class stable_vector<T>::iterator_t
+template <typename T, typename Alloc> template <typename TT>
+class stable_vector<T, Alloc>::iterator_t
 {
+    using block = typename stable_vector<T, Alloc>::block;
 public:
     using value_type = T;
     using reference = TT&;
@@ -359,5 +411,15 @@ private:
 
 };
 
+namespace pmr
+{
+template <typename T>
+using stable_vector = ::stable_vector<T, std::pmr::polymorphic_allocator<T>>;
+}
 
+template <typename T, typename Alloc, typename A2>
+stable_vector(stable_vector<T, Alloc>, A2) -> stable_vector<T, Alloc>;
+
+template <std::ranges::range R, typename A = std::allocator<typename R::value_type>>
+stable_vector(R, A = {}) -> stable_vector<typename R::value_type, A>;
 #endif //STABLE_VECTOR_STABLE_VECTOR_HPP_INCLUDED
