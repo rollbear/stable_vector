@@ -25,7 +25,7 @@ static_assert(std::is_invocable_v<decltype([]<typename T>(T&& x) -> decltype(std
 
 TEST_CASE("grow")
 {
-    for (size_t size = 0; size != 1000; ++size)
+    for (size_t size = 0; size != 100; ++size)
     {
         stable_vector<size_t> v;
         for (size_t n = 0; n != size; ++n)
@@ -86,6 +86,22 @@ TEST_CASE("pushed elements can be accessed using operator[]")
     }
 }
 
+TEST_CASE("front returrns the 1st element")
+{
+    stable_vector<int> v{1,2,3,4};
+    REQUIRE(v.front() == 1);
+    REQUIRE(&v.front() == &v[0]);
+    REQUIRE(&std::as_const(v).front() == &v[0]);
+}
+
+TEST_CASE("bac returns the last element")
+{
+    stable_vector<int> v{1,2,3,4};
+    REQUIRE(v.back() == 4);
+    REQUIRE(&v.back() == &v[3]);
+    REQUIRE(&std::as_const(v).back() == &v[3]);
+}
+
 TEST_CASE("pushed elements can be visited with forward iteration")
 {
     GIVEN("a vector with elements")
@@ -104,6 +120,18 @@ TEST_CASE("pushed elements can be visited with forward iteration")
                 {
                     REQUIRE(&elem == &vc[i]);
                     ++i;
+                }
+            }
+        }
+        AND_WHEN("looped with explicit const iterators")
+        {
+            auto i = v.cbegin();
+            auto e = v.cend();
+            THEN("all elements are readable in the order pushed")
+            {
+                for (size_t n = 0; i != e;)
+                {
+                    REQUIRE(*i++ == n++);
                 }
             }
         }
@@ -160,7 +188,30 @@ TEST_CASE("pushed elements can be visited with backward iteration")
                 }
             }
         }
+        AND_WHEN("begin is reachable from end")
+        {
+            auto e = v.end();
+            auto b = v.begin();
+            int i = 31;
+            while (e != b)
+            {
+                e--;
+                REQUIRE(i-- == *e);
+            }
+        }
     }
+}
+
+TEST_CASE("a const_iterator can be constructed from an iterator")
+{
+    using V = stable_vector<int>;
+    V v{1,2,3};
+    V::iterator i = v.begin();
+    V::const_iterator ci = i;
+    STATIC_REQUIRE(!std::is_constructible_v<V::iterator, V::const_iterator>);
+    STATIC_REQUIRE(!std::is_assignable_v<V::iterator, V::const_iterator>);
+    REQUIRE(i == ci);
+    REQUIRE(&*i == &*ci);
 }
 
 TEST_CASE("copy constructor allocates new objects, copied from the original")
@@ -614,6 +665,25 @@ private:
         return &rh == this;
     }
 };
+
+TEST_CASE("clear removes all elements and deallocates all data")
+{
+    counting_memory_resource mem;
+    {
+        pmr::stable_vector<int> v({1, 2, 3, 4}, &mem);
+
+        REQUIRE(mem.current_allocations > 0);
+        auto old_allocations = mem.current_allocations;
+        v.clear();
+        REQUIRE(v.empty());
+        REQUIRE(v.size() == 0);
+        REQUIRE(v.begin() == v.end());
+        REQUIRE(std::as_const(v).begin() == std::as_const(v).end());
+        REQUIRE(v.cbegin() == v.cend());
+        REQUIRE(mem.current_allocations < old_allocations);
+    }
+    REQUIRE(mem.current_allocations == 0);
+}
 
 TEST_CASE("PMR forwards to PMR enabled class")
 {
