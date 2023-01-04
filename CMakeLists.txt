@@ -5,11 +5,9 @@ set(CMAKE_CXX_STANDARD 20)
 
 option(FUZZER OFF "Build a fuzz-tester")
 option(BENCHMARK OFF "Build a benchmark")
+option(UNIT_TEST OFF "Build unit test")
 
-set(MASTER_PROJECT OFF)
-if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
-    set(MASTER_PROJECT ON)
-endif()
+include(FetchContent)
 
 add_library(stable_vector INTERFACE)
 add_library(stable_vector::stable_vector ALIAS stable_vector)
@@ -23,16 +21,23 @@ install(FILES stable_vector-config.cmake ${CMAKE_CURRENT_BINARY_DIR}/stable_vect
         DESTINATION lib/cmake/stable_vector COMPONENT Devel)
 install(DIRECTORY "include" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 
-if (MASTER_PROJECT)
+if (UNIT_TEST)
     set(CMAKE_CXX_STANDARD_REQUIRED YES)
     set(CMAKE_CXX_EXTENSIONS OFF)
 
     find_package(Catch2 3 QUIET)
-    if (TARGET Catch2::Catch2WithMain)
-        add_executable(test_stable_vector main.cpp)
-
-        target_link_libraries(test_stable_vector PRIVATE stable_vector::stable_vector Catch2::Catch2WithMain)
+    if (NOT ${Catch2_FOUND})
+        FetchContent_declare(
+                Catch2
+                GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+                GIT_TAG ab6c7375be9a8e71ee84c6f8537113f9f47daf99 # 3.2.1
+                OVERRIDE_FIND_PACKAGE
+        )
+        find_package(Catch2 3)
     endif()
+    add_executable(test_stable_vector main.cpp)
+
+    target_link_libraries(test_stable_vector PRIVATE stable_vector::stable_vector Catch2::Catch2WithMain)
 endif()
 
 if (BENCHMARK)
