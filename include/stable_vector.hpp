@@ -39,38 +39,38 @@ public:
     stable_vector(stable_vector&& v, allocator_type alloc);
 
     stable_vector(const stable_vector& source)
-        requires std::is_copy_constructible_v<value_type>;
+    requires std::is_copy_constructible_v<T>;
 
     template <std::ranges::range R>
     explicit stable_vector(const R& r, allocator_type alloc = allocator_type{})
-        requires std::is_constructible_v<value_type, std::ranges::range_reference_t<R>>;
+    requires std::is_constructible_v<T, std::ranges::range_reference_t<R>>;
 
     explicit stable_vector(std::initializer_list<value_type> v,
                            allocator_type alloc = allocator_type{})
-        requires std::is_copy_constructible_v<value_type>;
+    requires std::is_copy_constructible_v<T>;
 
     template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel>
     stable_vector(Iterator i, Sentinel e, allocator_type alloc=allocator_type{})
-        requires std::is_constructible_v<T, typename std::iterator_traits<Iterator>::value_type>;
+    requires std::is_constructible_v<T, typename std::iterator_traits<Iterator>::value_type>;
 
     ~stable_vector();
 
     auto operator=(const stable_vector& v) -> stable_vector&
-        requires std::is_copy_constructible_v<value_type>;
+    requires std::is_copy_constructible_v<T>;
 
     auto operator=(stable_vector&& v) noexcept -> stable_vector&
-        requires (std::allocator_traits<allocator_type>::is_always_equal::value
-                 || std::is_copy_constructible_v<value_type>);
+    requires (std::allocator_traits<Alloc>::is_always_equal::value
+              || std::is_copy_constructible_v<T>);
 
     auto push_back(const_reference t) -> reference
-        requires std::is_copy_constructible_v<value_type>;
+    requires std::is_copy_constructible_v<T>;
 
     auto push_back(value_type&& t) -> reference
-        requires std::is_move_constructible_v<value_type>;
+    requires std::is_move_constructible_v<T>;
 
     template <typename ... Ts>
     auto emplace_back(Ts&& ... ts) -> reference
-        requires std::is_constructible_v<value_type, Ts...>;
+    requires std::is_constructible_v<T, Ts...>;
 
     void pop_back() noexcept;
 
@@ -130,9 +130,9 @@ public:
     auto rend() const noexcept -> const_reverse_iterator;
 
     auto erase(iterator pos) noexcept -> iterator
-        requires std::is_nothrow_move_assignable_v<value_type>;
+    requires std::is_nothrow_move_assignable_v<T>;
     auto erase(iterator ib, iterator ie) noexcept -> iterator
-        requires std::is_nothrow_move_assignable_v<value_type>;
+    requires std::is_nothrow_move_assignable_v<T>;
 
     [[nodiscard]]
     auto get_allocator() const noexcept -> allocator_type;
@@ -207,7 +207,7 @@ struct stable_vector<T, Alloc>::block
 
 template <typename T, typename Alloc>
 stable_vector<T, Alloc>::stable_vector(allocator_type allocator)
-: allocator_(allocator)
+    : allocator_(allocator)
 {
 }
 
@@ -244,7 +244,7 @@ stable_vector<T, Alloc>::stable_vector(stable_vector&& v, allocator_type alloc)
 template <typename T, typename Alloc>
 stable_vector<T, Alloc>::stable_vector(const stable_vector& source)
 requires std::is_copy_constructible_v<T>
-    : allocator_(std::allocator_traits<allocator_type>::select_on_container_copy_construction(
+    : allocator_(std::allocator_traits<Alloc>::select_on_container_copy_construction(
     source.get_allocator()))
 {
     blocks_.reserve(source.blocks_.size());
@@ -272,7 +272,7 @@ requires std::is_copy_constructible_v<T>
 template <typename T, typename Alloc> template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel>
 stable_vector<T, Alloc>::stable_vector(Iterator i, Sentinel e, allocator_type alloc)
 requires std::is_constructible_v<T, typename std::iterator_traits<Iterator>::value_type>
-: allocator_(alloc)
+    : allocator_(alloc)
 {
     try {
         while (i != e)
@@ -290,7 +290,7 @@ requires std::is_constructible_v<T, typename std::iterator_traits<Iterator>::val
 
 template <typename T, typename Alloc> template <std::ranges::range R>
 stable_vector<T, Alloc>::stable_vector(const R& r, allocator_type alloc)
-requires std::is_constructible_v<value_type, std::ranges::range_reference_t<R>>
+requires std::is_constructible_v<T, std::ranges::range_reference_t<R>>
     : stable_vector(std::begin(r), std::end(r), alloc)
 {
 }
@@ -335,7 +335,7 @@ requires std::is_copy_constructible_v<T>
 template <typename T, typename Alloc>
 auto stable_vector<T, Alloc>::operator=(stable_vector&& v) noexcept -> stable_vector&
 requires (std::allocator_traits<Alloc>::is_always_equal::value
-|| std::is_copy_constructible_v<T>)
+          || std::is_copy_constructible_v<T>)
 {
     if constexpr (!typename std::allocator_traits<allocator_type>::is_always_equal{})
     {
@@ -583,7 +583,7 @@ auto stable_vector<T, Alloc>::element_at(std::size_t idx) const noexcept -> refe
     //       2   4   8
     //   0   1   3   7
     const auto block_id = static_cast<std::size_t>(std::bit_width(idx + 1)) - 1;
-    const auto block_offset = idx - (1U << block_id) + 1;
+    const auto block_offset = idx - (1ULL << block_id) + 1;
     return blocks_[block_id].begin_[block_offset];
 }
 
@@ -612,7 +612,7 @@ void stable_vector<T, Alloc>::delete_all(Vector& blocks, pointer end) noexcept
             }
         }
         const auto idx = blocks.size() - 1;
-        allocator.deallocate(last_block.begin_, 1U << idx);
+        allocator.deallocate(last_block.begin_, 1ULL << idx);
         blocks.pop_back();
     }
 }
@@ -622,7 +622,7 @@ auto stable_vector<T, Alloc>::grow(Ts&& ... ts) -> reference
 {
     if (empty() || end_ == blocks_.back().end_)
     {
-        const std::size_t size = 1 << blocks_.size();
+        const std::size_t size = 1ULL << blocks_.size();
         end_ = allocator_.allocate(size);
         blocks_.push_back({end_, end_ + size});
         if (blocks_.size() > 1) {
@@ -649,7 +649,7 @@ void stable_vector<T, Alloc>::shrink()
     if (end_ == blocks_.back().begin_)
     {
         blocks_.pop_back();
-        allocator_.deallocate(end_, 1U << blocks_.size());
+        allocator_.deallocate(end_, 1ULL << blocks_.size());
         if (blocks_.empty())
         {
             end_ = nullptr;
@@ -723,8 +723,8 @@ auto stable_vector<T, Alloc>::iterator_t<TT>::operator->() const noexcept -> poi
 
 template <typename T, typename Alloc> template <typename TT>
 stable_vector<T, Alloc>::iterator_t<TT>::iterator_t(pointer e, const block* b)
-: current_element(e)
-, current_block(b)
+    : current_element(e)
+    , current_block(b)
 {
 }
 

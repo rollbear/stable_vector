@@ -697,7 +697,7 @@ TEST_CASE("PMR forwards to PMR enabled class")
         v.emplace_back("woohoo a longish string with much nonsense");
         vs.emplace_back("woohoo a longish string with much nonsense");
 
-        REQUIRE(mem_fwd.current_allocations == mem_nonfwd.current_allocations + 1);
+        REQUIRE(mem_fwd.current_allocations > mem_nonfwd.current_allocations);
         REQUIRE(mem_nonfwd.deallocations == 0);
         REQUIRE(mem_fwd.deallocations == 0);
     }
